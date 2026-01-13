@@ -40,8 +40,10 @@ class WeatherApp:
         self.page = page
         page.title = "天気予報アプリ (気象庁 API)"
         page.horizontal_alignment = "stretch"
+        page.padding = 16
+        page.bgcolor = "#f6f8fa"
 
-        self.search = TextField(label="検索（地域名でフィルタ）", expand=True)
+        self.search = TextField(label="検索（地域名でフィルタ）", expand=True, height=40)
         self.search.on_change = self.on_search_change
 
         self.list_view = ListView(expand=True, spacing=5)
@@ -53,19 +55,23 @@ class WeatherApp:
         self.last_update_text = Text("")
 
         # App bar with refresh and last update
-        page.appbar = AppBar(title=Text("天気予報 (気象庁API)"),
+        page.appbar = AppBar(title=Text("天気予報 (気象庁API)", weight="bold"),
                              actions=[IconButton(icons.Icons.REFRESH, on_click=lambda e: page.run_thread(self.load_areas)),
                                       self.last_update_text])
 
-        left = Column([
-            Row([self.search, IconButton(icons.Icons.SEARCH_ROUNDED, on_click=self.on_search_click)]),
-            Container(self.list_view, width=360, padding=10),
-        ], width=360)
+        # Left column: search + area list
+        left_col = Column([
+            Row([self.search, IconButton(icons.Icons.SEARCH_ROUNDED, on_click=self.on_search_click)], spacing=8),
+            Container(self.list_view, width=360, padding=8),
+        ], tight=True)
 
-        self.detail_content = Column([Text("地域を選択してください")], expand=True)
-        self.detail = Card(content=Container(self.detail_content, padding=10), expand=True)
+        left = Container(left_col, width=380, padding=8, bgcolor="#ffffff", border_radius=8)
 
-        page.add(Row([left, self.detail], alignment="spaceBetween"))
+        # Right detail card
+        self.detail_content = Column([Text("地域を選択してください")], spacing=8, expand=True)
+        self.detail = Container(Card(content=Container(self.detail_content, padding=10), elevation=2), expand=True, padding=8)
+
+        page.add(Row([left, self.detail], alignment="spaceBetween", expand=True))
 
         # load area list in background (use page's thread runner)
         page.run_thread(self.load_areas)
@@ -103,7 +109,8 @@ class WeatherApp:
                             subtitle=Text(code, size=12, color="#666"),
                             leading=Icon(icons.Icons.LOCATION_ON),
                             on_click=lambda e, c=code, n=name: self.on_area_selected(c, n))
-            self.list_view.controls.append(Container(item, padding=6, bgcolor=selected_bg, border_radius=6))
+            card = Card(content=Container(item, padding=8), elevation=0)
+            self.list_view.controls.append(Container(card, padding=6, bgcolor=selected_bg, border_radius=6))
         self.page.schedule_update()
 
     def filter_list(self):
@@ -112,8 +119,10 @@ class WeatherApp:
         for code, name in self.areas:
             if q and q not in name.lower():
                 continue
-            btn = ElevatedButton(f"{name} ({code})", on_click=lambda e, c=code, n=name: self.on_area_selected(c, n))
-            self.list_view.controls.append(btn)
+            item = ListTile(title=Text(name),
+                            subtitle=Text(code, size=12, color="#666"),
+                            on_click=lambda e, c=code, n=name: self.on_area_selected(c, n))
+            self.list_view.controls.append(Container(Card(content=Container(item, padding=8)), padding=4))
         self.page.update()
 
     def on_area_selected(self, code, name):
@@ -172,7 +181,7 @@ class WeatherApp:
             Text(f"{name} の予報", size=20, weight="bold"),
             Text(f"発表: {office}  {report_time}", size=12, color="#666666"),
         ], tight=True)
-        self.detail_content.controls.append(Card(content=Container(header, padding=10)))
+        self.detail_content.controls.append(Card(content=Container(header, padding=10), elevation=1))
 
         time_series = report.get("timeSeries", [])
         if time_series:
@@ -185,9 +194,17 @@ class WeatherApp:
                 for i, d in enumerate(dates):
                     w = weathers[i] if i < len(weathers) else "-"
                     emoji = weather_to_emoji(w)
-                    row = Row([Text(d, size=12, color="#333"), Text(emoji, size=20), Text(w)], alignment="spaceBetween")
-                    self.detail_content.controls.append(Container(row, padding=6))
-                    self.detail_content.controls.append(Divider())
+                    # try to make date shorter
+                    try:
+                        dt = datetime.fromisoformat(d)
+                        date_str = dt.strftime('%m/%d %H:%M')
+                    except Exception:
+                        date_str = d
+                    card_row = Row([
+                        Column([Text(date_str, size=12, color="#333"), Text(emoji, size=22)]),
+                        Text(w, size=14),
+                    ], alignment="spaceBetween")
+                    self.detail_content.controls.append(Card(content=Container(card_row, padding=8), elevation=0))
         self.page.schedule_update()
 
 
